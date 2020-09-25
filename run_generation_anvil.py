@@ -39,6 +39,19 @@ from transformers import (
     XLNetTokenizer,
 )
 
+import anvil.server
+from anvil.tables import app_tables
+anvil.server.connect("BS2UZNSLV7UJ3ZP4FUMQ4LS6-JCKUGRWBRQYNDHYP")
+
+
+#anvil.server.connect("BS2UZNSLV7UJ3ZP4FUMQ4LS6-JCKUGRWBRQYNDHYP")
+#anvil.server.connect("MMW3GG2TY7KNT6ICP6OYKQG3-JCKUGRWBRQYNDHYP-CLIENT")
+
+@anvil.server.callable
+def say_hello(name):
+    print("Hello from the uplink, %s!" % name)
+    return name
+
 
 logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
@@ -61,7 +74,7 @@ MODEL_CLASSES = {
 # Padding text to help Transformer-XL and XLNet with short prompts as proposed by Aman Rusia
 # in https://github.com/rusiaaman/XLNet-gen#methodology
 # and https://medium.com/@amanrusia/xlnet-speaks-comparison-to-gpt-2-ea1a4e9ba39e
-PREFIX = """In 1991, the remains of Russian Tsar Nicholas II and his family
+PADDING_TEXT = """In 1991, the remains of Russian Tsar Nicholas II and his family
 (except for Alexei and Maria) are discovered.
 The voice of Nicholas's young son, Tsarevich Alexei Nikolaevich, narrates the
 remainder of the story. 1883 Western Siberia,
@@ -122,14 +135,12 @@ def prepare_xlm_input(args, model, tokenizer, prompt_text):
 
 
 def prepare_xlnet_input(args, _, tokenizer, prompt_text):
-    prefix = args.prefix if args.prefix else args.padding_text if args.padding_text else PREFIX
-    prompt_text = prefix + prompt_text
+    prompt_text = (args.padding_text if args.padding_text else PADDING_TEXT) + prompt_text
     return prompt_text
 
 
 def prepare_transfoxl_input(args, _, tokenizer, prompt_text):
-    prefix = args.prefix if args.prefix else args.padding_text if args.padding_text else PREFIX
-    prompt_text = prefix + prompt_text
+    prompt_text = (args.padding_text if args.padding_text else PADDING_TEXT) + prompt_text
     return prompt_text
 
 
@@ -150,26 +161,24 @@ def adjust_length_to_model(length, max_sequence_length):
         length = MAX_LENGTH  # avoid infinite loop
     return length
 
-
-def main():
+@anvil.server.callable
+def main(length, prompt_text):
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_type",
-        default=None,
+        default='gpt2',
         type=str,
-        required=True,
         help="Model type selected in the list: " + ", ".join(MODEL_CLASSES.keys()),
     )
     parser.add_argument(
         "--model_name_or_path",
-        default=None,
+        default='gpt2',
         type=str,
-        required=True,
         help="Path to pre-trained model or shortcut name selected in the list: " + ", ".join(MODEL_CLASSES.keys()),
     )
 
     parser.add_argument("--prompt", type=str, default="")
-    parser.add_argument("--length", type=int, default=20)
+    parser.add_argument("--length", type=int, default=20) #make this changeable in Anvil
     parser.add_argument("--stop_token", type=str, default=None, help="Token at which text generation is stopped")
 
     parser.add_argument(
@@ -184,8 +193,7 @@ def main():
     parser.add_argument("--k", type=int, default=0)
     parser.add_argument("--p", type=float, default=0.9)
 
-    parser.add_argument("--prefix", type=str, default="", help="Text added prior to input.")
-    parser.add_argument("--padding_text", type=str, default="", help="Deprecated, the use of `--prefix` is preferred.")
+    parser.add_argument("--padding_text", type=str, default="", help="Padding text for Transfo-XL and XLNet.")
     parser.add_argument("--xlm_language", type=str, default="", help="Optional language when used with the XLM model.")
 
     parser.add_argument("--seed", type=int, default=42, help="random seed for initialization")
@@ -223,11 +231,13 @@ def main():
 
     if args.fp16:
         model.half()
-
-    args.length = adjust_length_to_model(args.length, max_sequence_length=model.config.max_position_embeddings)
+    #TODO: args.length should be input in Anvil
+    args.length = adjust_length_to_model(length, max_sequence_length=model.config.max_position_embeddings)
     logger.info(args)
 
-    prompt_text = args.prompt if args.prompt else input("Model prompt >>> ")
+    #TODO: make this input from Anvil
+    #prompt_text = args.prompt if args.prompt else input("Model prompt >>> ")
+
 
     # Different models need different input formatting and/or extra arguments
     requires_preprocessing = args.model_type in PREPROCESSING_FUNCTIONS.keys()
@@ -244,8 +254,7 @@ def main():
             preprocessed_prompt_text, add_special_tokens=False, return_tensors="pt", **tokenizer_kwargs
         )
     else:
-        prefix = args.prefix if args.prefix else args.padding_text
-        encoded_prompt = tokenizer.encode(prefix + prompt_text, add_special_tokens=False, return_tensors="pt")
+        encoded_prompt = tokenizer.encode(prompt_text, add_special_tokens=False, return_tensors="pt")
     encoded_prompt = encoded_prompt.to(args.device)
 
     if encoded_prompt.size()[-1] == 0:
@@ -284,12 +293,14 @@ def main():
         total_sequence = (
             prompt_text + text[len(tokenizer.decode(encoded_prompt[0], clean_up_tokenization_spaces=True)) :]
         )
-
+        #TODO: output this to Anvil
         generated_sequences.append(total_sequence)
         print(total_sequence)
 
-    return generated_sequences
+    return total_sequence
+    #return generated_sequences
 
+anvil.server.wait_forever()
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()

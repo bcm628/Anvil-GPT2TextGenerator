@@ -149,6 +149,7 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
+
     parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
@@ -211,6 +212,7 @@ def main():
             "and load it from here, using --tokenizer_name"
         )
 
+
     if model_args.model_name_or_path:
         model = AutoModelWithLMHead.from_pretrained(
             model_args.model_name_or_path,
@@ -221,7 +223,8 @@ def main():
     else:
         logger.info("Training new model from scratch")
         model = AutoModelWithLMHead.from_config(config)
-
+    #TODO: check
+    num_added_toks = tokenizer.add_special_tokens({'pad_token': '<PAD>'})
     model.resize_token_embeddings(len(tokenizer))
 
     if config.model_type in ["bert", "roberta", "distilbert", "camembert"] and not data_args.mlm:
