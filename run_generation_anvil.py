@@ -40,17 +40,10 @@ from transformers import (
 )
 
 import anvil.server
-from anvil.tables import app_tables
-anvil.server.connect("BS2UZNSLV7UJ3ZP4FUMQ4LS6-JCKUGRWBRQYNDHYP")
+from uplink_key import get_uplink_key
 
-
-#anvil.server.connect("BS2UZNSLV7UJ3ZP4FUMQ4LS6-JCKUGRWBRQYNDHYP")
-#anvil.server.connect("MMW3GG2TY7KNT6ICP6OYKQG3-JCKUGRWBRQYNDHYP-CLIENT")
-
-@anvil.server.callable
-def say_hello(name):
-    print("Hello from the uplink, %s!" % name)
-    return name
+key = get_uplink_key()
+anvil.server.connect(key)
 
 
 logging.basicConfig(
@@ -162,7 +155,8 @@ def adjust_length_to_model(length, max_sequence_length):
     return length
 
 @anvil.server.callable
-def main(length, prompt_text):
+def main(length, prompt_text, model_name_or_path):
+    #length, prompt_text and model_name_or_path all come from Anvil app
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--model_type",
@@ -225,17 +219,23 @@ def main(length, prompt_text):
     except KeyError:
         raise KeyError("the model {} you specified is not supported. You are welcome to add it and open a PR :)")
 
-    tokenizer = tokenizer_class.from_pretrained(args.model_name_or_path)
-    model = model_class.from_pretrained(args.model_name_or_path)
+    if model_name_or_path == 'poe':
+        model_name_or_path = './tuned_model' #changes arg to fine-tuned model
+
+    tokenizer = tokenizer_class.from_pretrained(model_name_or_path)
+    model = model_class.from_pretrained(model_name_or_path)
+
+    # tokenizer = tokenizer_class.from_pretrained(args.model_name_or_path)
+    # model = model_class.from_pretrained(args.model_name_or_path)
     model.to(args.device)
 
     if args.fp16:
         model.half()
-    #TODO: args.length should be input in Anvil
+
     args.length = adjust_length_to_model(length, max_sequence_length=model.config.max_position_embeddings)
     logger.info(args)
 
-    #TODO: make this input from Anvil
+
     #prompt_text = args.prompt if args.prompt else input("Model prompt >>> ")
 
 
@@ -293,7 +293,7 @@ def main(length, prompt_text):
         total_sequence = (
             prompt_text + text[len(tokenizer.decode(encoded_prompt[0], clean_up_tokenization_spaces=True)) :]
         )
-        #TODO: output this to Anvil
+
         generated_sequences.append(total_sequence)
         print(total_sequence)
 
