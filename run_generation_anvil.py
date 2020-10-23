@@ -221,6 +221,8 @@ def main(length, prompt_text, model_name_or_path):
 
     if model_name_or_path == 'poe':
         model_name_or_path = './tuned_model' #changes arg to fine-tuned model
+    else:
+        model_name_or_path = 'gpt2'
 
     tokenizer = tokenizer_class.from_pretrained(model_name_or_path)
     model = model_class.from_pretrained(model_name_or_path)
